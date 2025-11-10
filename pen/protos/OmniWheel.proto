@@ -1,0 +1,292 @@
+#VRML_SIM R2025a utf8
+PROTO OmniWheel [
+  field SFString motorName    "wheel"
+  field SFString solidName    "wheel"
+  field SFRotation rotation     0 0 1 0
+]
+{
+  # WAS: Solid {
+  # NOW: Pose {
+  Pose {
+    rotation IS rotation
+    children [
+      DEF WHEEL1 HingeJoint {
+        jointParameters HingeJointParameters {
+          axis -1 0 0
+          anchor -0.08 0 0
+        }
+        device [
+          RotationalMotor {
+            name IS motorName
+          }
+        ]
+        endPoint Solid {
+          translation -0.08 0 0
+          children [
+            # --- Layer 1 Rollers (0, 90, 180, 270 deg) ---
+            DEF sr1 HingeJoint { # 0 deg (on Z+)
+              jointParameters HingeJointParameters {
+                axis 0 1 0 # 45 deg roller
+                anchor -0.02575 0 0.019 # x = layer 1, z = radius
+              }
+              endPoint Solid {
+                translation -0.02575 0 0.019
+                children [
+                  DEF r1 Pose {
+                    rotation -1 0 0 1.5708
+                    children [
+                      DEF SMALL_WHEEL_SHAPE Shape {
+                        appearance PBRAppearance {
+                          baseColor 1 0.752941 0.796078
+                          roughness 1
+                          metalness 0
+                        }
+                        geometry Cylinder {
+                          height 0.01
+                          radius 0.00575
+                        }
+                      }
+                    ]
+                  }
+                ]
+                name "sr1"
+                boundingObject USE r1
+                physics Physics {
+                  density -1
+                  mass 0.05 # Reduced mass for smaller size
+                }
+              }
+            }
+            DEF sr5 HingeJoint { # 90 deg (on Y+)
+              jointParameters HingeJointParameters {
+                axis 0 0 1 # 45 deg roller
+                anchor -0.02575 0.019 0 # x = layer 1, y = radius
+              }
+              endPoint Solid {
+                translation -0.02575 0.019 0
+                children [
+                  DEF r5 Pose {
+                    children [
+                      USE SMALL_WHEEL_SHAPE
+                    ]
+                  }
+                ]
+                name "sr5"
+                boundingObject USE r5
+                physics Physics {
+                  density -1
+                  mass 0.05
+                }
+              }
+            }
+            DEF sr3 HingeJoint { # 180 deg (on Z-)
+              jointParameters HingeJointParameters {
+                axis 0 1 0 # 45 deg roller
+                anchor -0.02575 0 -0.019 # x = layer 1, z = -radius
+              }
+              endPoint Solid {
+                translation -0.02575 0 -0.019
+                children [
+                  DEF r3 Pose {
+                    rotation -1 0 0 1.5708
+                    children [
+                      USE SMALL_WHEEL_SHAPE
+                    ]
+                  }
+                ]
+                name "sr3"
+                boundingObject USE r3
+                physics Physics {
+                  density -1
+                  mass 0.05
+                }
+              }
+            }
+            DEF sr6 HingeJoint { # 270 deg (on Y-)
+              jointParameters HingeJointParameters {
+                axis 0 0 1 # 45 deg roller
+                anchor -0.02575 -0.019 0 # x = layer 1, y = -radius
+              }
+              endPoint Solid {
+                translation -0.02575 -0.019 0
+                children [
+                  DEF r6 Pose {
+                    children [
+                      USE SMALL_WHEEL_SHAPE
+                    ]
+                  }
+                ]
+                name "sr6"
+                boundingObject USE r6
+                physics Physics {
+                  density -1
+                  mass 0.05
+                }
+              }
+            }
+            # --- Layer 2 Rollers (45, 135, 225, 315 deg) ---
+            DEF sr2 HingeJoint { # 45 deg
+              jointParameters HingeJointParameters {
+                axis 0 -0.707107 0.707107 # 45 deg roller
+                anchor -0.01425 0.013435 0.013435 # x = layer 2, y/z = r*cos(45)
+              }
+              endPoint Solid {
+                translation -0.01425 0.013435 0.013435
+                children [
+                  DEF r2 Pose {
+                    rotation -1 0 0 2.27
+                    children [
+                      USE SMALL_WHEEL_SHAPE
+                    ]
+                  }
+                ]
+                name "sr2"
+                boundingObject USE r2
+                physics Physics {
+                  density -1
+                  mass 0.05
+                }
+              }
+            }
+            DEF sr8 HingeJoint { # 135 deg
+              jointParameters HingeJointParameters {
+                axis 0 0.707107 0.707107 # 45 deg roller
+                anchor -0.01425 -0.013435 0.013435 # x = layer 2
+              }
+              endPoint Solid {
+                translation -0.01425 -0.013435 0.013435
+                children [
+                  DEF r8 Pose {
+                    rotation -1 0 0 0.76
+                    children [
+                      USE SMALL_WHEEL_SHAPE
+                    ]
+                  }
+                ]
+                name "sr8"
+                boundingObject USE r8
+                physics Physics {
+                  density -1
+                  mass 0.05
+                }
+              }
+            }
+            DEF sr4 HingeJoint { # 225 deg
+              jointParameters HingeJointParameters {
+                axis 0 -0.707107 0.707107 # 45 deg roller
+                anchor -0.01425 -0.013435 -0.013435 # x = layer 2
+              }
+              endPoint Solid {
+                translation -0.01425 -0.013435 -0.013435
+                children [
+                  DEF r4 Pose {
+                    rotation -1 0 0 2.27
+                    children [
+                      USE SMALL_WHEEL_SHAPE
+                    ]
+                  }
+                ]
+                name "sr4"
+                boundingObject USE r4
+                physics Physics {
+                  density -1
+                  mass 0.05
+                }
+              }
+            }
+            DEF sr7 HingeJoint { # 315 deg
+              jointParameters HingeJointParameters {
+                axis 0 0.707107 0.707107 # 45 deg roller
+                anchor -0.01425 0.013435 -0.013435 # x = layer 2
+              }
+              endPoint Solid {
+                translation -0.01425 0.013435 -0.013435
+                children [
+                  DEF r7 Pose {
+                    rotation -1 0 0 0.76
+                    children [
+                      USE SMALL_WHEEL_SHAPE
+                    ]
+                  }
+                ]
+                name "sr7"
+                boundingObject USE r7 # WAS: USE r8 - This is the fix
+                physics Physics {
+                  density -1
+                  mass 0.05
+                }
+              }
+            }
+            
+            # --- Main Wheel Visual (Double Layer) ---
+            DEF WHEEL_TRANS Pose {
+              translation -0.02 0 0 # Center the wheel assembly
+              rotation 0 -1 0 1.5708
+              children [
+                Group {
+                  children [
+                    # Layer 1 Visual
+                    Pose {
+                      translation 0 0 -0.00575 # Offset layer 1
+                      children [
+                        Shape {
+                          appearance PBRAppearance {
+                            baseColor 0.678431 0.847059 0.901961
+                            roughness 1
+                            metalness 0
+                          }
+                          geometry DEF WHEEL_VISUAL_GEOM Cylinder {
+                            height 0.0115 # 11.5mm width
+                            radius 0.019 # 19mm radius (38mm diameter)
+                            subdivision 20
+                          }
+                        }
+                      ]
+                    }
+                    # Layer 2 Visual
+                    Pose {
+                      translation 0 0 0.00575 # Offset layer 2
+                      children [
+                        Shape {
+                          appearance PBRAppearance {
+                            baseColor 0.678431 0.847059 0.901961
+                            roughness 1
+                            metalness 0
+                          }
+                          geometry USE WHEEL_VISUAL_GEOM
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+          # --- Main Wheel Bounding Object ---
+          boundingObject Pose {
+            translation -0.02 0 0
+            rotation 0 -1 0 1.5708
+            children [
+              Shape {
+                appearance PART_boundingObject_PBR {}
+                geometry Cylinder {
+                  height 0.023 # Total width for physics
+                  radius 0.019 # 38mm diameter
+                }
+              }
+            ]
+          }
+          physics Physics {
+          }
+        }
+      }
+    ]
+    # REMOVING THE FIELDS FROM THE OLD 'Solid' ROOT
+    # name IS solidName
+    # boundingObject DEF DUMMY Sphere {
+    #   radius 0.01
+    # }
+    # physics Physics {
+    # }
+  }
+}

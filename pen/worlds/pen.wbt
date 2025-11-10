@@ -1,0 +1,196 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "../protos/OmniWheel.proto"
+
+WorldInfo {
+  info [
+    "Omni-wheeled robot with pen drawing capability"
+  ]
+  title "Omni-Wheels with Pen"
+  basicTimeStep 8
+}
+Viewpoint {
+  orientation -0.7286347710867509 -0.03225787364722793 0.6841423828057414 3.1340911214576996
+  position -0.06787310609180562 -0.2580320832305709 0.9438370338333518
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+RectangleArena {
+  translation -0.239548 -0.0701539 -6.88338e-15
+  floorSize 3 3
+  floorTileSize 3 3
+}
+DEF GREEN_BOX Solid {
+  translation -1.02591 -0.511059 0.05
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0 1 0
+        roughness 0.2189099510000001
+        metalness 0
+      }
+      geometry DEF BOX0 Box {
+        size 0.1 0.23 0.1
+      }
+    }
+  ]
+  name "green box"
+  boundingObject Shape {
+    appearance PBRAppearance {
+      roughness 1.1102230246251565e-16
+      metalness 0
+    }
+    geometry USE BOX0
+  }
+}
+DEF BLUE_BOX Solid {
+  translation 0.293702 -1.01606 0.05
+  rotation 0 0 1 0.31
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0 0 1
+        roughness 0.519341125
+        metalness 0
+      }
+      geometry DEF BOX1 Box {
+        size 0.1 0.1 0.1
+      }
+    }
+  ]
+  name "blue box"
+  boundingObject Shape {
+    appearance PBRAppearance {
+      roughness 1.1102230246251565e-16
+      metalness 0
+    }
+    geometry USE BOX1
+  }
+}
+DEF YELLOW_BOX Solid {
+  translation -1.11656 0.0477684 0.05
+  rotation 0 0 1 0.4
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 1 0
+        roughness 0.03934117200000009
+        metalness 0
+      }
+      geometry DEF BOX2 Box {
+        size 0.3 0.05 0.1
+      }
+    }
+  ]
+  name "yellow box"
+  boundingObject Shape {
+    appearance PBRAppearance {
+      roughness 1.1102230246251565e-16
+      metalness 0
+    }
+    geometry USE BOX2
+  }
+}
+DEF PINK_BOX Solid {
+  translation -0.679694 -0.877338 0.05
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0.1 0.3
+        roughness 0.16827074099999995
+        metalness 0
+      }
+      geometry DEF BOX3 Box {
+        size 0.08 0.15 0.1
+      }
+    }
+  ]
+  name "red box"
+  boundingObject Shape {
+    appearance PBRAppearance {
+      roughness 1.1102230246251565e-16
+      metalness 0
+    }
+    geometry USE BOX3
+  }
+}
+DEF OMNI_WHEELS Robot {
+  translation 0 0 0.0250536
+  children [
+    OmniWheel {
+      motorName "wheel1"
+      solidName "wheel_solid_1"
+      rotation 0 0 1 0.5236
+    }
+    OmniWheel {
+      motorName "wheel2"
+      solidName "wheel_solid_2"
+      rotation 0 0 1 2.6136
+    }
+    OmniWheel {
+      motorName "wheel3"
+      solidName "wheel_solid_3"
+      rotation 0 0 1 4.7036
+    }
+    DEF BODY_MESH_POSE Pose {
+      translation 0 0 0.03
+      children [
+        Pose {
+          rotation 0 1 0 3.14159
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 1 0.666667 1
+              }
+              geometry Mesh {
+                url [
+                  "../../../../Downloads/MK2/MK2.obj"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+    Pen {
+      translation -0.136893 -0.0686472 0.031
+      rotation 0 0 1 2.0944
+      children [
+        Pose {
+          translation -0.01 0 0.0796592
+          rotation 0 1 0 -5.307179586466759e-06
+          children [
+            Transform {
+              rotation 0 1 0 1.5708
+              scale 0.001 0.001 0.001
+              children [
+                Shape {
+                  appearance PBRAppearance {
+                    baseColor 1 1 0
+                  }
+                  geometry Mesh {
+                    url [
+                      "../../../../Downloads/Revolve Marker/Revolve Marker.obj"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+      inkDensity 1
+      leadSize 0.01
+      write FALSE
+    }
+  ]
+  name "OmniBot"
+  physics Physics {
+  }
+  controller "keyboard"
+}
