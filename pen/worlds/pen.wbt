@@ -14,7 +14,7 @@ WorldInfo {
 }
 Viewpoint {
   orientation -0.7286347710867509 -0.03225787364722793 0.6841423828057414 3.1340911214576996
-  position -0.06787310609180562 -0.2580320832305709 0.9438370338333518
+  position -0.1251348255150131 -0.3063192226620256 1.8669115747451173
 }
 TexturedBackground {
 }
@@ -120,7 +120,8 @@ DEF PINK_BOX Solid {
   }
 }
 DEF OMNI_WHEELS Robot {
-  translation 0 0 0.0250536
+  translation -7.491083685706092e-08 4.3690973382262646e-08 0.024596908379400338
+  rotation -0.5038105951438692 -0.8638141101188301 0.000259577336913453 3.5072114571101266e-06
   children [
     OmniWheel {
       motorName "wheel1"
@@ -149,7 +150,7 @@ DEF OMNI_WHEELS Robot {
               }
               geometry Mesh {
                 url [
-                  "../../../../Downloads/MK2/MK2.obj"
+                  "../models/mk2.obj"
                 ]
               }
             }
@@ -175,7 +176,7 @@ DEF OMNI_WHEELS Robot {
                   }
                   geometry Mesh {
                     url [
-                      "../../../../Downloads/Revolve Marker/Revolve Marker.obj"
+                      "../models/marker.obj"
                     ]
                   }
                 }
@@ -193,4 +194,6 @@ DEF OMNI_WHEELS Robot {
   physics Physics {
   }
   controller "keyboard"
+  linearVelocity 7.979570389389594e-13 -4.642176395009183e-13 3.907985046680551e-15
+  angularVelocity -4.5633496981167806e-14 -6.202371949370899e-14 1.0156343933501942e-11
 }
