@@ -10,7 +10,7 @@ import math
 import numpy as np
 import networkx as nx
 
-from shapely.geometry import LineString, MultiLineString, Point
+from shapely.geometry import LineString, MultiLineString, Point, MultiPoint, Polygon
 from shapely.ops import nearest_points
 
 import matplotlib.pyplot as plt
@@ -23,25 +23,6 @@ from .image_processing import _poly_to_linestring
 class RoutePlan:
     segments: List[Tuple[bool, LineString]]
     component_paths: List[List[LineString]]
-
-
-def cut(line, distance):
-    """Cuts a line in two at a distance from its starting point."""
-    if distance <= 0.0 or distance >= line.length:
-        return [line]
-    coords = list(line.coords)
-    for i, p in enumerate(coords):
-        pd = line.project(Point(p))
-        if pd == distance:
-            return [
-                LineString(coords[:i+1]),
-                LineString(coords[i:])]
-        if pd > distance:
-            cp = line.interpolate(distance)
-            return [
-                LineString(coords[:i] + [(cp.x, cp.y)]),
-                LineString([(cp.x, cp.y)] + coords[i:])]
-    return [line]
 
 
 def plan_route_greedy(polylines, tolerance: float = 0.1) -> RoutePlan:
@@ -134,41 +115,34 @@ def plan_route_greedy(polylines, tolerance: float = 0.1) -> RoutePlan:
     # 5. Build the final segments using the smart greedy execution
     segments: List[Tuple[bool, LineString]] = []
     component_paths: List[List[LineString]] = [[]]
-    last_point = Point(0, 0)
+    last_point: Optional[Point] = None
 
     for line_idx in drawing_order:
         target_line = lines[line_idx]
         
-        connection_point = nearest_points(last_point, target_line)[1]
+        start_point = Point(target_line.coords[0])
+        end_point = Point(target_line.coords[-1])
 
-        if last_point.distance(connection_point) > 1e-6:
-            segments.append((False, LineString([last_point, connection_point])))
+        if last_point is None:
+            connection_point = start_point
+            line_to_draw = target_line
+        else:
+            dist_to_start = last_point.distance(start_point)
+            dist_to_end = last_point.distance(end_point)
 
-        distance = target_line.project(connection_point)
-        parts = cut(target_line, distance)
+            if dist_to_start < dist_to_end:
+                connection_point = start_point
+                line_to_draw = target_line
+            else:
+                connection_point = end_point
+                line_to_draw = LineString(list(target_line.coords)[::-1])
 
-        if len(parts) == 1:
-            line_to_draw = parts[0]
-            if Point(line_to_draw.coords[-1]).distance(connection_point) < 1e-6:
-                line_to_draw = LineString(list(line_to_draw.coords)[::-1])
-            segments.append((True, line_to_draw))
-            last_point = Point(line_to_draw.coords[-1])
-            component_paths[-1].append(line_to_draw)
-        elif len(parts) == 2:
-            part1, part2 = parts[0], parts[1]
-            if part1.length > part2.length:
-                part1, part2 = part2, part1
-            
-            first_draw_segment = LineString(list(part1.coords)[::-1])
-            segments.append((True, first_draw_segment))
-            
-            end_of_first_part = Point(first_draw_segment.coords[-1])
-            if end_of_first_part.distance(connection_point) > 1e-6:
-                segments.append((False, LineString([end_of_first_part, connection_point])))
+            if last_point.distance(connection_point) > 1e-6:
+                segments.append((False, LineString([last_point, connection_point])))
 
-            segments.append((True, part2))
-            last_point = Point(part2.coords[-1])
-            component_paths[-1].extend([first_draw_segment, part2])
+        segments.append((True, line_to_draw))
+        last_point = Point(line_to_draw.coords[-1])
+        component_paths[-1].append(line_to_draw)
 
     return RoutePlan(segments=segments, component_paths=component_paths)
 
@@ -288,6 +262,79 @@ def _make_eulerian(subgraph: nx.MultiGraph):
             subgraph.add_edge(n1, n2, **new_data)
 
 
+def _get_component_geometry(component: nx.MultiGraph) -> Polygon:
+    """Computes the Convex Hull of a component's nodes."""
+    points = [d["pos"] for _, d in component.nodes(data=True)]
+    if not points:
+        return Polygon()
+    # MultiPoint.convex_hull returns a Polygon (or LineString/Point if degenerate)
+    return MultiPoint(points).convex_hull
+
+
+def _sort_components_cdg(components: List[nx.MultiGraph]) -> List[nx.MultiGraph]:
+    """
+    Sorts graph components based on topological containment (inside-out).
+    This implements the Component Dependency Graph (CDG) algorithm.
+    """
+    if not components:
+        return []
+
+    # 1. Compute convex hulls for all components
+    # Store as (index, geometry) tuples
+    geoms = [_get_component_geometry(c) for c in components]
+
+    # 2. Build dependency graph
+    # Edge A -> B means A must be drawn BEFORE B.
+    # Logic: If component B contains component A, we must draw A first.
+    # So B depends on A. Edge A -> B.
+    # This means in a topological sort, A comes before B.
+    D = nx.DiGraph()
+    D.add_nodes_from(range(len(components)))
+
+    for i in range(len(components)):
+        poly_i = geoms[i]
+        if poly_i.is_empty:
+            continue
+
+        for j in range(len(components)):
+            if i == j:
+                continue
+            
+            poly_j = geoms[j]
+            if poly_j.is_empty:
+                continue
+
+            # Optimization: Disjoint check
+            if not poly_i.intersects(poly_j):
+                continue
+
+            # Check containment
+            # If i contains j, then j is INSIDE i.
+            # We want to draw j (inner) first, then i (outer).
+            # So j -> i.
+            try:
+                # Use a small buffer for robustness against touching boundaries
+                if poly_i.contains(poly_j) or poly_i.buffer(1e-6).contains(poly_j):
+                    D.add_edge(j, i)
+            except Exception:
+                continue
+
+    # 3. Topological Sort
+    try:
+        # Standard topological sort gives a valid ordering respecting dependencies
+        order_indices = list(nx.topological_sort(D))
+    except nx.NetworkXUnfeasible:
+        # Fallback for cycles: Sort by Y-coordinate (original logic)
+        return sorted(
+            components,
+            key=lambda g: max(d["pos"][1] for _, d in g.nodes(data=True)) if g.nodes else 0,
+            reverse=True,
+        )
+
+    # Re-order the components list based on the sort
+    return [components[i] for i in order_indices]
+
+
 def plan_route_graph(polylines, hierarchy=None, tolerance: float = 0.1) -> RoutePlan:
     G = build_graph(polylines, tolerance)
     components = [G.subgraph(c).copy() for c in nx.connected_components(G)]
@@ -295,11 +342,10 @@ def plan_route_graph(polylines, hierarchy=None, tolerance: float = 0.1) -> Route
     all_segments: List[Tuple[bool, LineString]] = []
     component_paths_for_plan: List[List[LineString]] = []
 
-    # Sort components from top to bottom based on their highest point
-    components.sort(
-        key=lambda g: max(d["pos"][1] for _, d in g.nodes(data=True)) if g.nodes else 0,
-        reverse=True,
-    )
+    # --- NEW: CDG Sorting Logic ---
+    # Replaces the simple Y-axis sort with topological containment sort
+    components = _sort_components_cdg(components)
+    # ------------------------------
 
     last_pos = None
 
@@ -409,5 +455,3 @@ __all__ = [
     "visualize_route",
     "build_graph",
 ]
-
-

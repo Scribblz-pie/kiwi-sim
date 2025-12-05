@@ -29,7 +29,7 @@ skeletonize = None
 find_contours = None
 approximate_polygon = None
 
-DEDUPLICATION_DISTANCE_TOLERANCE_DEFAULT = 0.1  # Canvas units after rescale
+DEDUPLICATION_DISTANCE_TOLERANCE_DEFAULT = 0.005  # Canvas units (meters)
 
 try:  # scikit-image
     from skimage import io as skio
@@ -85,6 +85,7 @@ class BodyTwist:
     vx: float
     vy: float
     omega: float
+    pen_down: bool = False
 
 
 @dataclass
@@ -97,61 +98,9 @@ class WheelCommand:
     body_twist: BodyTwist
     world_velocity: Tuple[float, float]
     wheel_speeds: Tuple[float, float, float]
+    pen_down: bool = False
     polyline_index: Optional[int] = None
     segment_index: Optional[int] = None
-
-
-@dataclass
-class WheelCommandSchedule:
-    """Collection of wheel commands plus metadata for downstream consumers."""
-
-    commands: List[WheelCommand]
-    wheel_names: Tuple[str, str, str] = ("wheel_1", "wheel_2", "wheel_3")
-    metadata: Optional[Dict[str, float]] = None
-
-    def to_jsonable(self) -> Dict[str, object]:
-        meta = self.metadata or {}
-        return {
-            "wheel_names": list(self.wheel_names),
-            "metadata": meta,
-            "commands": [
-                {
-                    "t": cmd.timestamp,
-                    "dt": cmd.duration,
-                    "pose": {
-                        "x": cmd.pose.x,
-                        "y": cmd.pose.y,
-                        "yaw": cmd.pose.yaw,
-                    },
-                    "body_twist": {
-                        "vx": cmd.body_twist.vx,
-                        "vy": cmd.body_twist.vy,
-                        "omega": cmd.body_twist.omega,
-                    },
-                    "world_velocity": {
-                        "vx": cmd.world_velocity[0],
-                        "vy": cmd.world_velocity[1],
-                    },
-                    "wheel_speeds": list(cmd.wheel_speeds),
-                    "polyline": cmd.polyline_index,
-                    "segment": cmd.segment_index,
-                }
-                for cmd in self.commands
-            ],
-        }
-
-    def save_json(self, filepath: str, *, indent: int = 2) -> None:
-        with open(filepath, "w", encoding="utf-8") as handle:
-            json.dump(self.to_jsonable(), handle, indent=indent)
-
-
-_KIWI_JACOBIAN_TEMPLATE = np.array(
-    [
-        [0.0, -np.sqrt(3.0) / 3.0, np.sqrt(3.0) / 3.0],
-        [2.0 / 3.0, -1.0 / 3.0, -1.0 / 3.0],
-        [0.0, 0.0, 0.0],
-    ]
-)
 
 
 def _world_to_body_velocity(vx: float, vy: float, yaw: float) -> Tuple[float, float]:
@@ -163,18 +112,24 @@ def _world_to_body_velocity(vx: float, vy: float, yaw: float) -> Tuple[float, fl
 
 
 def compute_kiwi_wheel_speeds(
-    vx: float,
-    vy: float,
+    vx_body: float,
+    vy_body: float,
     omega: float,
     robot_radius: float,
 ) -> np.ndarray:
+    """Computes wheel linear velocities using inverse kinematics."""
     if robot_radius <= 0:
         raise ValueError("robot_radius must be positive for kiwi drive kinematics")
 
-    j_mat = _KIWI_JACOBIAN_TEMPLATE.copy()
-    j_mat[2, :] = 1.0 / (3.0 * robot_radius)
-    twist = np.array([vx, vy, omega], dtype=float)
-    return np.linalg.solve(j_mat, twist)
+    l = robot_radius
+    sqrt3 = np.sqrt(3.0)
+
+    # User-provided inverse kinematic equations
+    w1 = (vy_body + l * omega)
+    w2 = (sqrt3 / 2.0 * vx_body - 0.5 * vy_body + l * omega)
+    w3 = (-sqrt3 / 2.0 * vx_body - 0.5 * vy_body + l * omega)
+    
+    return np.array([w1, w2, w3], dtype=float)
 
 
 def _poly_to_linestring(poly: Sequence[Tuple[float, float]]) -> Optional[LineString]:
@@ -188,6 +143,53 @@ def _poly_to_linestring(poly: Sequence[Tuple[float, float]]) -> Optional[LineStr
         if len(clean) >= 2:
             return LineString(clean)
         return None
+
+
+def save_commands_to_json(
+    commands: List[WheelCommand],
+    filepath: str,
+    metadata: dict,
+    wheel_radius: Optional[float] = None,
+    indent: int = 2,
+) -> None:
+    """Exports a list of WheelCommand objects to a custom JSON format."""
+    
+    output_commands = []
+    time_cursor = 0.0
+    
+    for cmd in commands:
+        wheel_speeds_out = list(cmd.wheel_speeds)
+        
+        # Convert to rad/s if wheel_radius is provided
+        if wheel_radius is not None and wheel_radius > 0:
+            wheel_speeds_out = [w / wheel_radius for w in wheel_speeds_out]
+
+        output_commands.append({
+            "time_start": cmd.timestamp,
+            "duration": cmd.duration,
+            "pen_down": cmd.pen_down,
+            "wheel_speeds": {
+                "wheel_1": wheel_speeds_out[0],
+                "wheel_2": wheel_speeds_out[1],
+                "wheel_3": wheel_speeds_out[2],
+            }
+        })
+        time_cursor += cmd.duration
+        
+    final_metadata = metadata.copy()
+    if wheel_radius is not None and wheel_radius > 0:
+        final_metadata["wheel_radius_r"] = wheel_radius
+        final_metadata["units"] = "rad/s"
+    else:
+        final_metadata["units"] = "m/s"
+
+    output_data = {
+        "metadata": final_metadata,
+        "commands": output_commands,
+    }
+    
+    with open(filepath, "w", encoding="utf-8") as handle:
+        json.dump(output_data, handle, indent=indent)
 
 
 def load_image(image_path: str) -> np.ndarray:
@@ -506,7 +508,7 @@ def generate_image_stages(
         smoothed = polylines
 
     rescaled_polys, bounds, canvas_height = rescale_polylines_to_canvas(smoothed, target_width, padding)
-    rescaled_polys = prune_micro_segments(rescaled_polys, min_len=max(0.25, target_width * 0.002))
+    rescaled_polys = prune_micro_segments(rescaled_polys, min_len=max(0.01, target_width * 0.002))
     deduped_rescaled = deduplicate_polylines(rescaled_polys, tolerance=dedup_tolerance)
 
     return ImageStages(
@@ -538,7 +540,7 @@ def _plan_straight_segment(
     vel_world = np.array([dx, dy], dtype=float) / duration
     vx_body, vy_body = _world_to_body_velocity(vel_world[0], vel_world[1], pose.yaw)
     omega = 0.0
-    wheel_speeds = compute_kiwi_wheel_speeds(vy_body, vx_body, omega, robot_radius)
+    wheel_speeds = compute_kiwi_wheel_speeds(vx_body, vy_body, omega, robot_radius)
 
     if max_wheel_speed is not None and max_wheel_speed > 0:
         max_abs = float(np.max(np.abs(wheel_speeds)))
@@ -748,16 +750,13 @@ __all__ = [
     "smooth_polylines",
     "load_image",
     "binarize_image",
-    "skeletonize_mask",
     "deduplicate_polylines",
     "extract_polylines_skimage",
     "RobotPose",
     "BodyTwist",
     "WheelCommand",
-    "WheelCommandSchedule",
     "compute_kiwi_wheel_speeds",
-    "generate_wheel_command_schedule",
-    "export_wheel_schedule_to_json",
+    "save_commands_to_json",
 ]
 
 
